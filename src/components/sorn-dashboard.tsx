@@ -141,7 +141,6 @@ export function SornDashboard({ authEnabled }: SornDashboardProps) {
   const [naturalDateText, setNaturalDateText] = useState("")
   const [isParsingNaturalDate, setIsParsingNaturalDate] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [telegramTestPending, setTelegramTestPending] = useState(false)
   const [bookmarkletHref, setBookmarkletHref] = useState("#")
   const [nameInference, setNameInference] = useState<NameInference>({
     name: "",
@@ -885,42 +884,6 @@ export function SornDashboard({ authEnabled }: SornDashboardProps) {
     }
   }
 
-  async function testTelegramContact() {
-    const telegram = contacts.telegram.trim()
-
-    if (!telegram) {
-      setLiveMessage("Add a Telegram chat ID first.")
-      return false
-    }
-
-    if (!authEnabled) {
-      setLiveMessage("Sign in to send Telegram test messages.")
-      return false
-    }
-
-    setTelegramTestPending(true)
-
-    try {
-      const response = await fetch("/api/reminders/telegram/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telegram }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Unable to send Telegram test.")
-      }
-
-      setLiveMessage("Telegram test sent.")
-      return true
-    } catch {
-      setLiveMessage("Could not send Telegram test.")
-      return false
-    } finally {
-      setTelegramTestPending(false)
-    }
-  }
-
   return (
     <>
       {authEnabled && (
@@ -928,9 +891,6 @@ export function SornDashboard({ authEnabled }: SornDashboardProps) {
           dataReady={loaded && remoteLoaded}
           contacts={contacts}
           onContactsChange={setContacts}
-          onSaveContacts={saveContactValues}
-          onTestTelegram={testTelegramContact}
-          telegramTestPending={telegramTestPending}
         />
       )}
       <Dialog open={addOpen} onOpenChange={handleAddOpenChange}>

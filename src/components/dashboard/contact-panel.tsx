@@ -101,11 +101,14 @@ export function ContactPopover({
     }
 
     setTelegramConnectionState("creating")
-    const telegramWindow = window.open(
-      "about:blank",
-      "_blank",
-      "noopener,noreferrer"
-    )
+    const telegramWindow = window.open("about:blank", "_blank")
+
+    if (!telegramWindow) {
+      setTelegramConnectionState("error")
+      return
+    }
+
+    telegramWindow.opener = null
 
     try {
       const response = await fetch("/api/onboarding/telegram-link", {
@@ -125,13 +128,9 @@ export function ContactPopover({
 
       setTelegramConnectionToken(link.token)
       setTelegramConnectionState("waiting")
-      if (telegramWindow) {
-        telegramWindow.location.href = link.link
-      } else {
-        window.location.href = link.link
-      }
+      telegramWindow.location.href = link.link
     } catch {
-      telegramWindow?.close()
+      telegramWindow.close()
       setTelegramConnectionState("error")
       setTelegramConnectionToken("")
     }

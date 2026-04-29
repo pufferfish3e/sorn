@@ -24,11 +24,19 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 Sorn can send Telegram trial reminders one day before a trial ends.
 
+## SEO
+
+Set `NEXT_PUBLIC_SITE_URL` to the production origin, for example
+`https://your-domain.com`. Sorn uses it for canonical URLs, `robots.txt`, and
+`sitemap.xml`. If it is omitted on Vercel, the production deployment URL is used
+when available.
+
 ### App setup
 
 Add these environment variables:
 
 ```bash
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
 TELEGRAM_BOT_TOKEN=123456:bot-token-from-botfather
 TELEGRAM_BOT_USERNAME=your_bot_username
 TELEGRAM_WEBHOOK_SECRET=long-random-webhook-secret

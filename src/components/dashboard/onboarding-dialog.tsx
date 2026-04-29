@@ -2,28 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useUser } from "@clerk/nextjs"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import {
-  CheckCircle2,
-  Clipboard,
-  ExternalLink,
-  MessageCircle,
-  RefreshCw,
-  Send,
-  ShieldCheck,
-} from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
+import { CheckCircle2, Send } from "lucide-react"
 import type { ReminderContacts } from "@/components/dashboard/contact-panel"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -32,29 +15,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 type OnboardingDialogProps = {
   dataReady: boolean
   contacts: ReminderContacts
   onContactsChange: (contacts: ReminderContacts) => void
-  onSaveContacts: () => Promise<boolean>
-  onTestTelegram: () => Promise<boolean>
-  telegramTestPending: boolean
 }
 
-type TelegramLinkState =
+type TelegramConnectionState =
   | "idle"
   | "creating"
-  | "ready"
   | "waiting"
   | "connected"
   | "expired"
@@ -85,19 +56,14 @@ function AuthenticatedOnboardingDialog({
   dataReady,
   contacts,
   onContactsChange,
-  onSaveContacts,
-  onTestTelegram,
-  telegramTestPending,
 }: OnboardingDialogProps) {
   const { isLoaded, isSignedIn, user } = useUser()
   const reduceMotion = useReducedMotion()
   const [dismissed, setDismissed] = useState(true)
   const [open, setOpen] = useState(false)
-  const [telegramLink, setTelegramLink] = useState("")
   const [telegramToken, setTelegramToken] = useState("")
-  const [telegramLinkState, setTelegramLinkState] =
-    useState<TelegramLinkState>("idle")
-  const [statusMessage, setStatusMessage] = useState("")
+  const [telegramConnectionState, setTelegramConnectionState] =
+    useState<TelegramConnectionState>("idle")
 
   const dismissedKey = useMemo(() => {
     return user?.id ? `sorn.onboarding.dismissed.v1:${user.id}` : ""
@@ -132,59 +98,7 @@ function AuthenticatedOnboardingDialog({
   }, [shouldOpen])
 
   useEffect(() => {
-    if (!open || telegramToken || telegramLinkState !== "idle") {
-      return
-    }
-
-    let cancelled = false
-
-    async function createTelegramLink() {
-      setTelegramLinkState("creating")
-      setStatusMessage("Creating Telegram setup link.")
-
-      try {
-        const response = await fetch("/api/onboarding/telegram-link", {
-          method: "POST",
-        })
-
-        if (!response.ok) {
-          throw new Error("Unable to create setup link.")
-        }
-
-        const payload: unknown = await response.json()
-        const linkPayload = readTelegramLinkPayload(payload)
-
-        if (!linkPayload) {
-          throw new Error("Invalid setup link response.")
-        }
-
-        if (cancelled) {
-          return
-        }
-
-        setTelegramLink(linkPayload.link)
-        setTelegramToken(linkPayload.token)
-        setTelegramLinkState("ready")
-        setStatusMessage("Telegram link ready.")
-      } catch {
-        if (cancelled) {
-          return
-        }
-
-        setTelegramLinkState("error")
-        setStatusMessage("Telegram link needs bot configuration.")
-      }
-    }
-
-    void createTelegramLink()
-
-    return () => {
-      cancelled = true
-    }
-  }, [open, telegramLinkState, telegramToken])
-
-  useEffect(() => {
-    if (!open || !telegramToken || telegramLinkState !== "waiting") {
+    if (!open || !telegramToken || telegramConnectionState !== "waiting") {
       return
     }
 
@@ -211,18 +125,19 @@ function AuthenticatedOnboardingDialog({
 
         if (status.status === "connected") {
           onContactsChange({ ...contacts, telegram: status.telegram })
-          setTelegramLinkState("connected")
-          setStatusMessage("Telegram connected.")
+          setTelegramConnectionState("connected")
+          setTelegramToken("")
           return
         }
 
         if (status.status === "expired") {
-          setTelegramLinkState("expired")
-          setStatusMessage("Telegram setup link expired.")
+          setTelegramConnectionState("expired")
+          setTelegramToken("")
         }
       } catch {
         if (!cancelled) {
-          setStatusMessage("Still waiting for Telegram.")
+          setTelegramConnectionState("error")
+          setTelegramToken("")
         }
       }
     }
@@ -238,7 +153,7 @@ function AuthenticatedOnboardingDialog({
     contacts,
     onContactsChange,
     open,
-    telegramLinkState,
+    telegramConnectionState,
     telegramToken,
   ])
 
@@ -260,30 +175,48 @@ function AuthenticatedOnboardingDialog({
     setOpen(false)
   }
 
-  async function finishWithManualTelegram() {
-    const saved = await onSaveContacts()
-
-    if (saved) {
-      dismissOnboarding()
-    }
-  }
-
-  function refreshTelegramLink() {
-    setTelegramLink("")
-    setTelegramToken("")
-    setTelegramLinkState("idle")
-  }
-
-  async function copyTelegramLink() {
-    if (!telegramLink) {
+  async function connectTelegram() {
+    if (
+      telegramConnectionState === "creating" ||
+      telegramConnectionState === "waiting" ||
+      hasTelegram
+    ) {
       return
     }
 
+    setTelegramConnectionState("creating")
+    const telegramWindow = window.open("about:blank", "_blank")
+
+    if (!telegramWindow) {
+      setTelegramConnectionState("error")
+      return
+    }
+
+    telegramWindow.opener = null
+
     try {
-      await navigator.clipboard.writeText(telegramLink)
-      setStatusMessage("Telegram link copied.")
+      const response = await fetch("/api/onboarding/telegram-link", {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        throw new Error("Unable to create Telegram link.")
+      }
+
+      const payload: unknown = await response.json()
+      const link = readTelegramLinkPayload(payload)
+
+      if (!link) {
+        throw new Error("Invalid Telegram link response.")
+      }
+
+      setTelegramToken(link.token)
+      setTelegramConnectionState("waiting")
+      telegramWindow.location.href = link.link
     } catch {
-      setStatusMessage("Could not copy Telegram link.")
+      telegramWindow.close()
+      setTelegramConnectionState("error")
+      setTelegramToken("")
     }
   }
 
@@ -291,249 +224,112 @@ function AuthenticatedOnboardingDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="liquid-glass max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[28px] bg-background/88 p-0 sm:max-w-3xl"
+        className="liquid-glass max-h-[calc(100vh-2rem)] overflow-hidden rounded-[28px] bg-background/88 p-0 sm:max-w-4xl"
       >
-        <div className="grid gap-0 md:grid-cols-[0.9fr_1.1fr]">
-          <div className="relative overflow-hidden rounded-t-[28px] bg-muted/20 p-5 md:rounded-l-[28px] md:rounded-tr-none">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_12%,rgba(255,255,255,0.18),transparent_28%),radial-gradient(ellipse_at_84%_86%,rgba(232,168,56,0.14),transparent_34%)]" />
-            <div className="relative flex min-h-70 flex-col justify-between gap-8">
-              <DialogHeader>
-                <Badge variant="secondary" className="mb-2 w-fit">
-                  First run
-                </Badge>
-                <DialogTitle className="text-2xl leading-tight font-semibold md:text-3xl">
-                  Choose where Sorn should wake you up.
-                </DialogTitle>
-                <DialogDescription className="max-w-72">
-                  Telegram takes one click. WhatsApp will sit beside it once the
-                  channel is ready.
-                </DialogDescription>
-              </DialogHeader>
+        <div className="grid min-h-[30rem] md:grid-cols-[0.92fr_1.08fr]">
+          <div className="flex flex-col justify-between gap-6 p-5 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="text-2xl leading-tight font-semibold">
+                Set up Telegram
+              </DialogTitle>
+              <DialogDescription>
+                One tap. Sorn handles the rest.
+              </DialogDescription>
+            </DialogHeader>
 
-              <div className="flex flex-col gap-3">
-                <OnboardingStep
-                  active
-                  complete={telegramLinkState === "connected" || hasTelegram}
-                  label="Open Telegram"
-                />
-                <OnboardingStep
-                  active={telegramLinkState === "waiting"}
-                  complete={telegramLinkState === "connected" || hasTelegram}
-                  label="Press Start"
-                />
-                <OnboardingStep
-                  active={telegramLinkState === "connected" || hasTelegram}
-                  complete={hasTelegram}
-                  label="Save channel"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 p-5">
-            <AnimatePresence mode="popLayout">
-              {telegramLinkState === "connected" || hasTelegram ? (
-                <motion.div
-                  key="connected"
-                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2, ease: premiumEase }}
-                  className="rounded-[20px] border border-success/25 bg-success-muted/50 p-4 text-success"
-                >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 aria-hidden="true" className="size-5" />
-                    <div className="min-w-0">
-                      <p className="font-medium">Telegram connected</p>
-                      <p className="truncate text-sm text-success/80">
-                        {contacts.telegram}
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-
-            <Card className="rounded-[22px] bg-card/72">
+            <Card className="rounded-[22px] bg-card/70">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <Send aria-hidden="true" className="size-4" />
                   </span>
                   Telegram
                 </CardTitle>
-                <CardDescription>
-                  A private bot message is the fastest reminder path.
-                </CardDescription>
-                <CardAction>
-                  <Badge variant="default">Recommended</Badge>
-                </CardAction>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
-                  <span className="mt-0.5 flex size-5 items-center justify-center rounded-full bg-muted text-[11px]">
-                    1
-                  </span>
-                  <p className="text-muted-foreground">
-                    Open the bot link and tap Start in Telegram.
-                  </p>
-                  <span className="mt-0.5 flex size-5 items-center justify-center rounded-full bg-muted text-[11px]">
-                    2
-                  </span>
-                  <p className="text-muted-foreground">
-                    Leave this window open. Sorn will detect the bot start and
-                    finish the connection.
+                <div className="rounded-2xl border border-white/[0.06] bg-background/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Destination</p>
+                  <p
+                    className={cn(
+                      "mt-1 truncate text-sm",
+                      hasTelegram ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {hasTelegram ? contacts.telegram : "Not connected"}
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  {telegramLink ? (
-                    <Button
-                      render={
-                        <a
-                          href={telegramLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => {
-                            setTelegramLinkState("waiting")
-                            setStatusMessage("Waiting for Telegram Start.")
-                          }}
-                        />
-                      }
-                      nativeButton={false}
-                      className="flex-1"
-                    >
-                      <ExternalLink data-icon="inline-start" aria-hidden="true" />
-                      Open Telegram
-                    </Button>
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={
+                    hasTelegram ||
+                    telegramConnectionState === "creating" ||
+                    telegramConnectionState === "waiting"
+                  }
+                  onClick={() => void connectTelegram()}
+                >
+                  {hasTelegram ? (
+                    <CheckCircle2 data-icon="inline-start" aria-hidden="true" />
                   ) : (
-                    <Button disabled className="flex-1">
-                      <ExternalLink data-icon="inline-start" aria-hidden="true" />
-                      {telegramLinkState === "creating"
-                        ? "Preparing link"
-                        : "Telegram link unavailable"}
-                    </Button>
+                    <Send data-icon="inline-start" aria-hidden="true" />
                   )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Copy Telegram link"
-                    disabled={!telegramLink}
-                    onClick={copyTelegramLink}
-                  >
-                    <Clipboard aria-hidden="true" />
-                  </Button>
-                  {(telegramLinkState === "expired" ||
-                    telegramLinkState === "error") && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      aria-label="Refresh Telegram link"
-                      onClick={refreshTelegramLink}
-                    >
-                      <RefreshCw aria-hidden="true" />
-                    </Button>
+                  {getTelegramConnectionLabel(
+                    telegramConnectionState,
+                    hasTelegram
                   )}
-                </div>
+                </Button>
 
                 <p
                   className={cn(
                     "min-h-5 text-sm text-muted-foreground",
-                    telegramLinkState === "expired" && "text-destructive"
+                    telegramConnectionState === "connected" && "text-success",
+                    (telegramConnectionState === "expired" ||
+                      telegramConnectionState === "error") &&
+                      "text-destructive"
                   )}
                   aria-live="polite"
                 >
-                  {getTelegramStatusText(telegramLinkState, statusMessage)}
+                  {getTelegramStatusText(telegramConnectionState, hasTelegram)}
                 </p>
               </CardContent>
-              <CardFooter className="flex-col items-stretch gap-3">
-                <FieldGroup className="gap-3">
-                  <Field>
-                    <FieldLabel htmlFor="onboarding-telegram-target">
-                      Manual fallback
-                    </FieldLabel>
-                    <Input
-                      id="onboarding-telegram-target"
-                      value={contacts.telegram}
-                      onChange={(event) =>
-                        onContactsChange({
-                          ...contacts,
-                          telegram: event.target.value,
-                        })
-                      }
-                      placeholder="123456789"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <FieldDescription>
-                      Use a numeric chat ID only when the bot link cannot be
-                      used.
-                    </FieldDescription>
-                  </Field>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="flex-1"
-                      disabled={!contacts.telegram.trim()}
-                      onClick={() => void finishWithManualTelegram()}
-                    >
-                      <ShieldCheck data-icon="inline-start" aria-hidden="true" />
-                      Save Telegram
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="flex-1"
-                      disabled={!contacts.telegram.trim() || telegramTestPending}
-                      onClick={() => void onTestTelegram()}
-                    >
-                      <Send data-icon="inline-start" aria-hidden="true" />
-                      {telegramTestPending ? "Sending" : "Test"}
-                    </Button>
-                  </div>
-                </FieldGroup>
-              </CardFooter>
             </Card>
 
-            <Card className="rounded-[22px] border-dashed bg-card/46 opacity-80">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <MessageCircle aria-hidden="true" className="size-4" />
-                  </span>
-                  WhatsApp
-                </CardTitle>
-                <CardDescription>
-                  Reserved for the next channel integration.
-                </CardDescription>
-                <CardAction>
-                  <Badge variant="outline">Soon</Badge>
-                </CardAction>
-              </CardHeader>
-            </Card>
-
-            <Separator />
-
-            <DialogFooter className="-mx-5 -mb-5 rounded-b-[28px]">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={dismissOnboarding}
-              >
-                Skip for now
+            <DialogFooter className="gap-2 sm:justify-between">
+              <Button type="button" variant="ghost" onClick={dismissOnboarding}>
+                Skip
               </Button>
               <Button
                 type="button"
                 disabled={!hasTelegram}
                 onClick={dismissOnboarding}
               >
-                <CheckCircle2 data-icon="inline-start" aria-hidden="true" />
-                Finish setup
+                Done
               </Button>
             </DialogFooter>
+          </div>
+
+          <div className="relative min-h-80 overflow-hidden border-t border-white/[0.06] bg-muted/20 md:border-l md:border-t-0">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_32%_18%,rgba(255,255,255,0.14),transparent_34%),radial-gradient(ellipse_at_80%_86%,rgba(232,168,56,0.16),transparent_42%),linear-gradient(145deg,rgba(28,34,46,0.86),rgba(10,14,21,0.94))]" />
+            <div className="relative flex h-full items-center justify-center p-5">
+              <motion.div
+                className="aspect-video w-full overflow-hidden rounded-[24px] border border-white/[0.08] bg-background/72 shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
+                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, ease: premiumEase }}
+              >
+                <video
+                  className="h-full w-full object-cover"
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                  poster="/placeholders/onboarding-video.svg"
+                >
+                  <source src="/onboarding-demo.mp4" type="video/mp4" />
+                </video>
+              </motion.div>
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -541,76 +337,57 @@ function AuthenticatedOnboardingDialog({
   )
 }
 
-function OnboardingStep({
-  active,
-  complete,
-  label,
-}: {
-  active?: boolean
-  complete?: boolean
-  label: string
-}) {
-  return (
-    <div className="flex items-center gap-3 text-sm">
-      <span
-        className={cn(
-          "flex size-6 items-center justify-center rounded-full border text-[11px]",
-          complete
-            ? "border-success/30 bg-success-muted text-success"
-            : active
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border bg-muted/30 text-muted-foreground"
-        )}
-      >
-        {complete ? <CheckCircle2 aria-hidden="true" className="size-3" /> : ""}
-      </span>
-      <span
-        className={cn(
-          "text-muted-foreground",
-          active && "text-foreground",
-          complete && "text-success"
-        )}
-      >
-        {label}
-      </span>
-    </div>
-  )
-}
-
-function getTelegramStatusText(
-  state: TelegramLinkState,
-  fallbackMessage: string
+function getTelegramConnectionLabel(
+  state: TelegramConnectionState,
+  connected: boolean
 ) {
-  if (state === "creating") {
-    return "Preparing a fresh Telegram link."
+  if (connected || state === "connected") {
+    return "Connected"
   }
 
-  if (state === "ready") {
-    return "Link ready. Open Telegram to start the bot."
+  if (state === "creating") {
+    return "Opening..."
   }
 
   if (state === "waiting") {
-    return "Waiting for Telegram to confirm the Start tap."
+    return "Waiting..."
   }
 
-  if (state === "connected") {
-    return "Telegram is connected."
+  if (state === "expired" || state === "error") {
+    return "Retry"
+  }
+
+  return "Connect Telegram"
+}
+
+function getTelegramStatusText(
+  state: TelegramConnectionState,
+  connected: boolean
+) {
+  if (connected || state === "connected") {
+    return "Connected."
+  }
+
+  if (state === "creating") {
+    return "Opening Telegram."
+  }
+
+  if (state === "waiting") {
+    return "Tap Start in Telegram."
   }
 
   if (state === "expired") {
-    return "This setup link expired. Refresh it and try again."
+    return "Link expired."
   }
 
   if (state === "error") {
-    return fallbackMessage || "Telegram bot username is not configured."
+    return "Could not open Telegram."
   }
 
-  return fallbackMessage
+  return "Ready."
 }
 
-function readTelegramLinkPayload(
-  value: unknown
-): TelegramLinkPayload | null {
+function readTelegramLinkPayload(value: unknown): TelegramLinkPayload | null {
   if (!isRecord(value)) {
     return null
   }

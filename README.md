@@ -20,6 +20,50 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Telegram reminders
+
+Sorn can send Telegram trial reminders one day before a trial ends.
+
+### App setup
+
+Add these environment variables:
+
+```bash
+TELEGRAM_BOT_TOKEN=123456:bot-token-from-botfather
+TELEGRAM_BOT_USERNAME=your_bot_username
+TELEGRAM_WEBHOOK_SECRET=long-random-webhook-secret
+CRON_SECRET=long-random-secret
+```
+
+Register the Telegram webhook after deploy:
+
+```bash
+curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d "url=https://your-domain.com/api/telegram/webhook" \
+  -d "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+```
+
+Run the reminder dispatch from a daily cron job:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://your-domain.com/api/reminders/telegram
+```
+
+New users see an onboarding flow that creates a one-click Telegram setup link.
+The bot webhook receives `/start <token>`, stores the Telegram chat ID, and the
+dashboard finishes setup automatically. The Channels popover still accepts a
+manual numeric chat ID fallback.
+
+### Telegram setup
+
+1. In Telegram, open `@BotFather`.
+2. Send `/newbot`, choose a display name and username, then copy the token.
+3. Add the token to `TELEGRAM_BOT_TOKEN`.
+4. Add the bot username to `TELEGRAM_BOT_USERNAME` without the leading `@`.
+5. Deploy the app and register the webhook above.
+6. Sign in with a fresh account and use the onboarding Telegram link.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

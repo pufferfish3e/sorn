@@ -1,26 +1,242 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning-muted: var(--warning-muted);
+  --color-destructive-muted: var(--destructive-muted);
+  --color-surface-2: var(--surface-2);
+  --font-sans: var(--font-geist, Arial, Helvetica, sans-serif);
+  --font-mono: var(--font-geist-mono, "SFMono-Regular", Consolas, "Liberation Mono", monospace);
+  --font-heading: var(--font-geist, Arial, Helvetica, sans-serif);
+  --font-display: var(--font-geist, Arial, Helvetica, sans-serif);
+  --font-playfair: var(--font-playfair-display, Georgia, serif);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  color-scheme: dark;
+  --background: #0d1117;
+  --foreground: #e8ebf0;
+  --card: #161b22;
+  --card-foreground: #e8ebf0;
+  --popover: #161b22;
+  --popover-foreground: #e8ebf0;
+  --primary: #e8a838;
+  --primary-foreground: #1a1000;
+  --secondary: #1c2230;
+  --secondary-foreground: #e8ebf0;
+  --muted: #1c2230;
+  --muted-foreground: #8b95a8;
+  --accent: #1c2230;
+  --accent-foreground: #e8ebf0;
+  --destructive: #e05252;
+  --destructive-muted: rgba(224, 82, 82, 0.1);
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #e8a838;
+  --success: #4caf7d;
+  --success-muted: rgba(76, 175, 125, 0.1);
+  --warning-muted: rgba(232, 168, 56, 0.12);
+  --surface-2: #1c2230;
+  --ease-premium: cubic-bezier(0.77, 0, 0.175, 1);
+  --radius: 0.625rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0d1117;
+  --foreground: #e8ebf0;
+  --card: #161b22;
+  --card-foreground: #e8ebf0;
+  --popover: #161b22;
+  --popover-foreground: #e8ebf0;
+  --primary: #e8a838;
+  --primary-foreground: #1a1000;
+  --secondary: #1c2230;
+  --secondary-foreground: #e8ebf0;
+  --muted: #1c2230;
+  --muted-foreground: #8b95a8;
+  --accent: #1c2230;
+  --accent-foreground: #e8ebf0;
+  --destructive: #e05252;
+  --destructive-muted: rgba(224, 82, 82, 0.1);
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #e8a838;
+  --success: #4caf7d;
+  --success-muted: rgba(76, 175, 125, 0.1);
+  --warning-muted: rgba(232, 168, 56, 0.12);
+  --surface-2: #1c2230;
+  --ease-premium: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply h-full bg-background font-sans;
+  }
+
+  body {
+    @apply min-h-full overflow-x-hidden bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-primary text-primary-foreground;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .liquid-glass {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid color-mix(in oklab, var(--foreground) 18%, transparent);
+    background:
+      linear-gradient(
+        135deg,
+        color-mix(in oklab, var(--card) 74%, transparent),
+        color-mix(in oklab, var(--card) 46%, transparent)
+      );
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--foreground) 18%, transparent),
+      inset 0 -1px 0 color-mix(in oklab, var(--background) 70%, transparent),
+      0 18px 60px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(22px) saturate(1.35);
+  }
+
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        120% 90% at 12% 0%,
+        color-mix(in oklab, var(--foreground) 22%, transparent),
+        transparent 42%
+      ),
+      linear-gradient(
+        110deg,
+        transparent 0%,
+        color-mix(in oklab, var(--foreground) 10%, transparent) 36%,
+        transparent 58%
+      );
+    opacity: 0.65;
+    mix-blend-mode: screen;
+  }
+
+  .liquid-glass::after {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent),
+      inset 0 18px 34px color-mix(in oklab, var(--foreground) 5%, transparent);
+  }
+
+  .liquid-glass > * {
+    position: relative;
+  }
+
+  .liquid-glass-action {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid color-mix(in oklab, var(--foreground) 22%, transparent);
+    background:
+      linear-gradient(
+        145deg,
+        color-mix(in oklab, var(--foreground) 12%, transparent),
+        color-mix(in oklab, var(--card) 20%, transparent) 42%,
+        color-mix(in oklab, var(--background) 18%, transparent)
+      );
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--foreground) 28%, transparent),
+      inset 0 -12px 24px color-mix(in oklab, var(--background) 28%, transparent),
+      0 12px 36px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(28px) saturate(1.55);
+  }
+
+  .liquid-glass-action::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        80% 80% at 20% 0%,
+        color-mix(in oklab, var(--foreground) 30%, transparent),
+        transparent 46%
+      ),
+      linear-gradient(
+        115deg,
+        transparent 10%,
+        color-mix(in oklab, var(--foreground) 16%, transparent) 46%,
+        transparent 66%
+      );
+    opacity: 0.72;
+    mix-blend-mode: screen;
+  }
+
+  .liquid-glass-action::after {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent),
+      inset 0 10px 24px color-mix(in oklab, var(--foreground) 7%, transparent);
+  }
+
+  .liquid-glass-action > * {
+    position: relative;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
